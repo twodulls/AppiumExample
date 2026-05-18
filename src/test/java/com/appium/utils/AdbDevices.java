@@ -1,4 +1,4 @@
-package com.appium.common;
+package com.appium.utils;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -28,7 +28,7 @@ public class AdbDevices {
 
     /**
      * ADB 명령어로 기기에 설치된 앱의 버전명을 가져옵니다.
-     * @param appPackage 앱 패키지명 (예: com.sfn.oesikup)
+     * @param appPackage 앱 패키지명 (예: com.domain.apppackage)
      * @return 앱 버전명 (예: 1.0.0), 실패 시 "unknown"
      */
     public static String getAppVersion(String appPackage) {

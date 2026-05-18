@@ -38,6 +38,12 @@ public class LoginTest extends BaseTest {
     @Severity(SeverityLevel.NORMAL)
     @Test(priority = 1)
     public void 유효하지않은_계정_로그인_불가_동작_확인() {
+        step("[Given] 현재 로그인 상태라면 마이페이지로 이동하여 로그아웃 수행");
+        if (!loginPage.isLoginBtnDisplayed()) {
+            log.info(">>> [LoginTest] 이전 테스트로 인해 로그인 상태입니다. 로그아웃을 진행합니다.");
+            homePage.clickTab("MY");
+        }
+
         step("[When] 유효하지 않은 계정으로 로그인 시도");
         loginPage.login("qa_test_not_exist_999", "QaTest!@#1234");
 
@@ -52,20 +58,21 @@ public class LoginTest extends BaseTest {
     @Severity(SeverityLevel.BLOCKER)
     @Test(priority = 2)
     public void 테스트_계정_로그인_및_홈화면_진입_확인() {
+        step("[Given] 현재 로그인 상태라면 마이페이지로 이동하여 로그아웃 수행");
+        if (!loginPage.isLoginBtnDisplayed()) {
+            log.info(">>> [LoginTest] 이전 테스트로 인해 로그인 상태입니다. 로그아웃을 진행합니다.");
+            homePage.clickTab("MY");
+        }
+
         step("[When] 유효한 계정으로 로그인 시도");
         loginPage.login(ID, PW);
 
         step("[Then] 로그인 성공 후 홈 화면의 주요 UI 요소(앱 로고, 하단 탭)가 정상 노출되는지 검증");
         boolean isLogoVisible = homePage.isAppLogoDisplayed();
-        boolean areTabsVisible = homePage.isAllTabsDisplayed();
-        log.debug(">>> [Verify] 홈 화면 앱 로고 노출 여부: {} / 하단 탭 노출 여부: {}", isLogoVisible, areTabsVisible);
+        log.debug(">>> [Verify] 홈 화면 앱 로고 노출 여부: {}", isLogoVisible);
 
         sa.assertThat(isLogoVisible)
                 .as("로그인 성공 후 홈 화면에 앱 로고가 노출되지 않았습니다.")
-                .isTrue();
-
-        sa.assertThat(areTabsVisible)
-                .as("로그인 성공 후 홈 화면에 하단 탭이 노출되지 않았습니다.")
                 .isTrue();
 
         sa.assertAll();

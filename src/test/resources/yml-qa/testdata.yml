@@ -1,5 +1,12 @@
 ipAddress : 127.0.0.1
 port : 4723
-appPackage : com.domain.apppackage
 id : testId
 pw : testPw
+
+android :
+  appPackage : com.domain.apppackage
+
+ios :
+  bundleId : com.domain.apppackage
+  udid : 00008120-000608EA3413C01E
+  xcodeOrgId : 473G6T2VYZ

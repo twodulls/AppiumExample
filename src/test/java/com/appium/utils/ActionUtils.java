@@ -1,9 +1,13 @@
 package com.appium.utils;
 
-import com.appium.common.ScreenshotListener;
+import com.appium.common.BaseTest;
+import com.appium.listener.ScreenshotListener;
+import io.appium.java_client.AppiumDriver;
 import io.appium.java_client.android.AndroidDriver;
 import io.appium.java_client.android.nativekey.AndroidKey;
+import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.By;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.PointerInput;
 import org.openqa.selenium.interactions.Sequence;
@@ -16,23 +20,24 @@ import java.util.Collections;
 /**
  * 클릭, 텍스트 입력 등 기본 액션
  */
+@Slf4j
 public class ActionUtils {
-    protected AndroidDriver driver;
+    protected AppiumDriver driver;
     protected WebDriverWait wait;
 
-    public ActionUtils(AndroidDriver driver, WebDriverWait wait) {
+    public ActionUtils(AppiumDriver driver, WebDriverWait wait) {
         this.driver = driver;
         this.wait = wait;
     }
 
     public static final String[] ALERT_POPUP_TEXTS = {
-            "일시적인 오류",
-            "네트워크 오류",
-            "오류가 발생했습니다",
-            "주문 마감시간이 지났습니다",
-            "이미 장바구니에 담은 상품입니다"
+            "alert text 1", "alert text 2", "alert text 3", "alert text 4"
     };
-    private static final By CONFIRM_BTN = By.xpath("//android.widget.TextView[@text='확인']");
+
+    // 플랫폼별 팝업 확인 버튼 식별자 동적 생성
+    private By getConfirmBtnLocator() {
+        return BaseTest.platform.confirmBtnLocator();
+    }
 
     /**
      * 기본 액션 (클릭, 입력, 조회)
@@ -41,7 +46,7 @@ public class ActionUtils {
         try {
             wait.until(ExpectedConditions.visibilityOf(element)).click();
         } catch (Exception e) {
-            // 클릭 실패 시 알림 팝업 확인 후 재시도
+            // 요소 클릭 실패시, 팝업의 '확인' 버튼 클릭 후 재시도
             if (dismissAlertPopupIfPresent(ALERT_POPUP_TEXTS)) {
                 wait.until(ExpectedConditions.visibilityOf(element)).click();
             } else {
@@ -55,7 +60,7 @@ public class ActionUtils {
         try {
             wait.until(ExpectedConditions.visibilityOfElementLocated(locator)).click();
         } catch (Exception e) {
-            // 클릭 실패 시 알림 팝업 확인 후 재시도
+            // 요소 클릭 실패시, 팝업의 '확인' 버튼 클릭 후 재시도
             if (dismissAlertAndRetry()) {
                 wait.until(ExpectedConditions.visibilityOfElementLocated(locator)).click();
             } else {
@@ -71,9 +76,7 @@ public class ActionUtils {
     private boolean dismissAlertAndRetry() {
         WebDriverWait shortWait = new WebDriverWait(driver, java.time.Duration.ofSeconds(3));
         for (String popupText : ALERT_POPUP_TEXTS) {
-            By popupTextBy = By.xpath(
-                    String.format("//android.widget.TextView[contains(@text, '%s')]", popupText)
-            );
+            By popupTextBy = BaseTest.platform.byPopupText(popupText);
             try {
                 shortWait.until(ExpectedConditions.visibilityOfElementLocated(popupTextBy));
 
@@ -83,7 +86,7 @@ public class ActionUtils {
                             .getScreenshotAs(org.openqa.selenium.OutputType.BYTES);
                     byte[] resized = ScreenshotListener.resizeScreenshot(screenshot, 0.3f);
                     io.qameta.allure.Allure.addAttachment(
-                            "알림 팝업 감지 - " + popupText,
+                            "알림 팝업 감지: " + popupText,
                             "image/png",
                             new java.io.ByteArrayInputStream(resized),
                             "png"
@@ -91,11 +94,11 @@ public class ActionUtils {
                 } catch (Exception ignored) {}
 
                 // '확인' 버튼 클릭하여 팝업 닫기
-                shortWait.until(ExpectedConditions.elementToBeClickable(CONFIRM_BTN)).click();
+                shortWait.until(ExpectedConditions.elementToBeClickable(getConfirmBtnLocator())).click();
                 try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
                 return true;
             } catch (Exception ignored) {
-                // 해당 텍스트의 팝업이 없는 경우 — 다음 텍스트 확인
+                // 해당 텍스트의 팝업이 없는 경우: 다음 텍스트 확인
             }
         }
         return false;
@@ -104,7 +107,14 @@ public class ActionUtils {
     // 텍스트 입력
     public void sendKeys(WebElement element, String text) {
         wait.until(ExpectedConditions.visibilityOf(element));
+        element.click();
         element.clear();
+        String currentText = element.getText();
+        if (currentText != null && !currentText.isEmpty()) {
+            for (int i = 0; i < currentText.length(); i++) {
+                element.sendKeys(Keys.BACK_SPACE);
+            }
+        }
         element.sendKeys(text);
     }
 
@@ -140,8 +150,7 @@ public class ActionUtils {
 
     // 특정 텍스트를 포함하는 요소를 반환합니다.
     public WebElement getElementByText(String text) {
-        String xpath = "//*[contains(@text, '" + text + "')]";
-        return wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(xpath)));
+        return wait.until(ExpectedConditions.presenceOfElementLocated(BaseTest.platform.byContainsText(text)));
     }
 
     // 요소에서 텍스트 추출하기
@@ -155,18 +164,18 @@ public class ActionUtils {
      * @return 팝업을 닫았으면 true, 팝업이 없었으면 false
      */
     public boolean dismissAlertPopupIfPresent(String... popupTexts) {
-        WebDriverWait microWait = new WebDriverWait(driver, java.time.Duration.ofMillis(1000));
+        long timeoutMs = BaseTest.platform.isIos() ? 2000 : 1000;
+        WebDriverWait microWait = new WebDriverWait(driver, java.time.Duration.ofMillis(timeoutMs));
+        // 팝업 감지 후 확인 버튼 클릭은 별도 3초 대기 (플랫폼 무관하게 안정적으로)
+        WebDriverWait confirmWait = new WebDriverWait(driver, java.time.Duration.ofSeconds(3));
 
         for (String popupText : popupTexts) {
-            By popupTextBy = By.xpath(
-                    String.format("//android.widget.TextView[contains(@text, '%s')]", popupText)
-            );
-
+            By popupTextBy = BaseTest.platform.byPopupText(popupText);
             try {
                 microWait.until(ExpectedConditions.visibilityOfElementLocated(popupTextBy));
 
                 // 팝업 감지 시 로깅 및 스크린샷
-                System.out.println(">>> [ActionUtils] 오류 팝업 감지: '" + popupText + "'");
+                log.warn(">>> [ActionUtils] 오류 팝업 감지됨: '{}'. 닫기를 시도합니다.", popupText);
                 try {
                     byte[] screenshot = driver.getScreenshotAs(org.openqa.selenium.OutputType.BYTES);
                     byte[] resized = ScreenshotListener.resizeScreenshot(screenshot, 0.3f);
@@ -177,12 +186,12 @@ public class ActionUtils {
                 } catch (Exception ignored) {}
 
                 // '확인' 버튼 클릭하여 팝업 닫기
-                microWait.until(ExpectedConditions.elementToBeClickable(CONFIRM_BTN)).click();
+                confirmWait.until(ExpectedConditions.elementToBeClickable(getConfirmBtnLocator())).click();
                 try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
 
                 return true; // 팝업 하나 처리 후 즉시 true 반환
             } catch (Exception ignored) {
-                // 해당 텍스트의 팝업이 없는 경우 — 다음 텍스트 확인
+                // 해당 텍스트의 팝업이 없는 경우: 다음 텍스트 확인
             }
         }
         return false;
@@ -205,12 +214,42 @@ public class ActionUtils {
         };
     }
 
+    //  화면을 아래로 스크롤하는 공통 메서드
+    public void swipeDown() {
+        int screenHeight = driver.manage().window().getSize().getHeight();
+        int screenWidth = driver.manage().window().getSize().getWidth();
+        // 화면의 70% 지점에서 30% 지점으로 쓸어 올림 -> 화면은 밑으로 내려감
+        swipe(driver, screenWidth / 2, (int) (screenHeight * 0.7), screenWidth / 2, (int) (screenHeight * 0.3));
+    }
+
+    /**
+     * 요소가 보일 때까지 화면을 아래로 스크롤한 뒤 안전 영역으로 맞춥니다.
+     * iOS처럼 화면에 안 보이면 메모리에도 없는 요소를 찾을 때 사용합니다.
+     */
+    public boolean scrollToElement(WebElement element) {
+        int maxSwipes = 5; // 최대 5번 스와이프
+        for (int i = 0; i < maxSwipes; i++) {
+            try {
+                if (element.isDisplayed()) {
+                    // 화면에 보이면, 안전 영역(하단 탭이나 상단 노치에 가려지지 않게)으로 미세조정
+                    scrollIntoSafeZone(driver, element);
+                    return true;
+                }
+            } catch (Exception e) {
+                // 아직 DOM에 없거나 안 보이면 에러가 남 -> 무시하고 스크롤 강행
+            }
+            swipeDown();
+            try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+        }
+        return false; // 끝까지 못 찾을경우 false 반환
+    }
+
     /**
      * 특정 요소가 하단 플로팅 바(또는 상단 헤더)에 가려지지 않는 '안전 영역'에 올 때까지 스크롤합니다.
-     * @param driver AndroidDriver 인스턴스
-     * @param element 보이게 만들고자 하는 대상 요소
+     * @param driver Driver 인스턴스
+     * @param element 설정된 영역에 위치시킬 대상 요소
      */
-    public static void scrollIntoSafeZone(AndroidDriver driver, WebElement element) {
+    public static void scrollIntoSafeZone(AppiumDriver driver, WebElement element) {
         int maxSwipes = 5; // 무한 스크롤 방지용 최대 횟수
         int screenHeight = driver.manage().window().getSize().getHeight();
         int screenWidth = driver.manage().window().getSize().getWidth();
@@ -244,7 +283,7 @@ public class ActionUtils {
     }
 
     // 지정한 좌표로 드래그(스와이프)를 수행하는 내부 헬퍼 메서드
-    private static void swipe(AndroidDriver driver, int startX, int startY, int endX, int endY) {
+    private static void swipe(AppiumDriver driver, int startX, int startY, int endX, int endY) {
         PointerInput finger = new PointerInput(PointerInput.Kind.TOUCH, "finger");
         Sequence swipe = new Sequence(finger, 1);
 
