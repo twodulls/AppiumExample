@@ -8,5 +8,5 @@ android :
 
 ios :
   bundleId : com.domain.apppackage
-  udid : 00008120-000608EA3413C01E
-  xcodeOrgId : 473G6T2VYZ
+  udid : XXXX-XXXX
+  xcodeOrgId : XXXX
