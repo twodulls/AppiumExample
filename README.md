@@ -1,4 +1,4 @@
-# sfn-sqa-appium-example
+# appium-example
 
 Android / iOS 앱 UI 자동화 테스트 예제 프로젝트입니다.
 Appium + TestNG + Allure Report 조합으로 구성되어 있으며, Page Object Model(POM) 패턴과 플랫폼 추상화(`PlatformUtils`)를 기반으로 단일 코드베이스에서 Android와 iOS를 모두 지원합니다.
